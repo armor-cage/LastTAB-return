@@ -1,4 +1,8 @@
 # LastTAB-return (0.8.3 beta)
+![Brave](https://img.shields.io/badge/Brave-Browser-FB542B?style=for-the-badge&logo=brave&logoColor=white)
+![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Chromium-blue?style=for-the-badge)
+
 Rozszerzenie do przeglądarki (Chrome/Brave) usprawniające zarządzanie kartami.
 
 ## Funkcje
