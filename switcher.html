@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <title>LastTAB-return - siatka kart</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --gap: 8px;
+    --tile-min-w: 200px;
+    --tile-h: 30px;
+    --tile-pad: 5px;
+    --grid-mode: grid;
+    --columns-gap: 12px;
+    --controls-minw: 180px;
+    --fav-size: 16px;
+
+    /* --- KOLOR BAZOWY (HEX) --- */
+    --marquee-stroke: #0969da; /* Główny kolor (niebieski domyślnie) */
+
+    /* Automatyczne odcienie z HEX przy użyciu color-mix */
+    /* Tło: 12% koloru bazowego, reszta przezroczysta */
+    --selected-bg: color-mix(in srgb, var(--marquee-stroke) 12%, transparent);
+
+    --selected-glow: color-mix(in srgb, var(--marquee-stroke) 12%, transparent);
+    
+    --drag-target-bg: #ffe9e9; /* Cel DnD (czerwony) */
+
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    /* 1. BAZA */
+    body { background: #0d1117; color: #c9d1d9; }
+    
+    /* 2. HEADER / FOOTER / LINIE */
+    header { background: #161b22; border-bottom-color: #30363d; }
+    footer { border-top-color: #30363d; color: #8b949e; background: #0d1117; }
+    .sep { background: #30363d; }
+
+    /* 3. TEKSTY */
+    .muted-text, .pin, .meta { color: #8b949e; }
+    /* Etykiety w ustawieniach (jasne) */
+    .control label { color: #e6edf3; } 
+    .control label .lab { color: #8b949e; } /* (opcjonalnie etykieta pola nieco ciemniejsza) */
+    /* Tytuły kart (białe) */
+    .title { color: #f0f6fc; }
+
+    /* 4. PRZYCISKI / INPUTY / POPUPY */
+    .btn, input[type="text"], input[type="number"], input[type="search"], select {
+        background: #0d1117; color: #c9d1d9; border-color: #30363d;
+    }
+    .btn:hover { background: #21262d; }
+    
+    .settings-toggle { background: #0d1117; color: #c9d1d9; border-color: #30363d; }
+    .settings-toggle:hover { background: #1f232a; }
+
+    .section { background: #161b22; border-color: #30363d; }
+    .section > legend { color: #8b949e; }
+
+    /* 5. KAFLE */
+    .grid.columns .tile, .tile { 
+        background-color: #161b22; 
+        border-color: #30363d; 
+        box-shadow: none; 
+    }
+    /* Hover - rozjaśnienie */
+    .tile:hover { 
+        background-image: linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08));
+        background-color: unset;
+    }
+    /* Zaznaczenie - ciemne tło pod spodem */
+    .tile.selected { background-color: #161b22; }
+    .tile.selected.in-selected-group { background-color: transparent; }
+
+    /* 6. IKONY / FAVICONY */
+    /* Ciemne tło pod ikonką (zamiast białego) */
+    .fav-wrap { background: #21262d; }
+    .grid .tile > .fav-wrap > img.fav { filter: brightness(0.9); } /* Lekko przygaś zbyt jasne ikony */
+
+    /* Folder grupy (ikonka literowa) */
+    .fav.is-letter { color: #fff; }
+
+    /* 7. GRUPY */
+    .group-chip { background: #161b22; border-color: #30363d; color: #f0f6fc; }
+    .group-chip:hover { background: #1f232a; }
+    .group-chip.selected { background: #161b22; }
+    .group-chip .actions .btn-icon { color: #8b949e; }
+    .group-chip .actions .btn-icon:hover { color: #c9d1d9; }
+    .grp-collapsed-count { color: #8b949e; border-color: #30363d; }
+
+    /* 8. MENU / POPUP (Ważne: wyraźne tło i ramka) */
+    .menu, #groupEditDialog, .help-panel-top {
+        background: #161b22 !important;
+        border-color: #30363d !important;
+        color: #e6edf3 !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.8) !important;
+    }
+    /* Tekst w menu */
+    .menu .mi { color: #e6edf3; }
+    .menu .mi:hover { background: #1f232a; }
+    .menu .m, .menu .empty { color: #8b949e; }
+    /* Ikony w menu (folder/oko) */
+    .menu .mi div:first-child { color: #8b949e; } /* Szare ikony zamiast czarnych */
+
+    /* 9. ŚPM (UZBROJENIE - Czerwony) */
+    .tile.mmb-armed { 
+        background-color: #161b22; /* baza */
+        background-image: linear-gradient(rgba(255, 50, 50, 0.25), rgba(255, 50, 50, 0.25));
+    }
+    /* Cel DnD */
+    .tile.drag-target {
+        background-color: #161b22;
+        background-image: linear-gradient(rgba(255, 50, 50, 0.25), rgba(255, 50, 50, 0.25));
+    }
+
+    /* 10. INNE */
+    .help-btn-top { background: #0d1117; border-color: #30363d; color: #c9d1d9; }
+    .help-btn-top:hover { background: #1f232a; }
+    
+    .smart-tip {
+      color: #c9d1d9;
+      background: #161b22;
+      border-color: #30363d;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    
+    /* Aktywna karta (ramka) */
+    .active { border-color: var(--marquee-stroke); box-shadow: 0 0 0 2px var(--selected-glow); }
+  }
+
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, sans-serif;
+    margin: 0;
+    color: #1f2328;
+    display: grid;
+    grid-template-rows: auto 1fr auto; /* header | main | footer */
+    min-height: 100vh;
+    overflow: hidden; /* tylko main ma mieć scroll */
+  }
+
+  header {
+    background: #f6f8fa;
+    border-bottom: 1px solid #d0d7de;
+    padding: 0px 20px 6px 20px;
+  }
+
+
+.color-swatch {
+  width: 16px; height: 16px; border-radius: 50%; border: 3px solid transparent; cursor: pointer;
+}
+.color-swatch.selected { border-color: #000; transform: scale(1.1); }
+@media (prefers-color-scheme: dark) { .color-swatch.selected { border-color: #fff; } }
+
+  /* „?” po prawej krawędzi tego samego paska */
+.help-btn-top {
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid #d0d7de;
+    background: #fff;
+    color: #24292f;
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+  .help-btn-top:hover { background: #f3f4f6; }
+  .help-btn-top:focus { outline: 2px solid #0969da33; outline-offset: 2px; }
+
+  /* Panel pomocy przy prawej krawędzi, pod przyciskiem „?” */
+  .help-panel-top {
+    position: absolute;
+    top: 25px; right: 20px;
+    width: min(560px, 92vw);
+    max-height: min(70vh, 560px);
+    overflow: auto;
+    padding: 12px;
+    background: #fff;
+    color: #24292f;
+    border: 1px solid #9aa3ad;
+    border-radius: 8px;
+    z-index: 10050;
+    box-shadow: none;
+  }
+  .help-panel-top .hp-title { font-size: 14px; font-weight: 600; color: #57606a; margin-bottom: 8px; }
+  .help-panel-top .hp-body { font-size: 13px; line-height: 1.4; }
+  .help-panel-top .hp-body ul { margin: 8px 0 0 18px; padding: 0; }
+  .help-panel-top .hp-body li { margin: 4px 0; }
+  
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--controls-minw), 1fr));
+    gap: 8px 10px;
+    align-items: center;
+  }
+  .controls.compact { gap: 6px 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+  .control { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  .control label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .control input[type="number"] { width: 56px; }
+  .control select { max-width: 100%; min-width: 100px; }
+  .control--actions { justify-self: end; }
+
+  /* Rewers dla pól: wartość po lewej, etykieta po prawej z separatorem „ : ” */
+  .control label.rev { flex-direction: row-reverse; }
+  .control label.rev .lab { white-space: nowrap; }
+  .control label.rev .lab::before { content: " : "; color: #8b949e; }
+
+  .muted-text { color: #666; font-size: 12px; }
+  .sep { height: 1px; background: #d0d7de; margin: 8px 0; }
+
+  .btn {
+    appearance: none; border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+  }
+  .btn:hover { background: #f3f4f6; }
+
+  /* Sekcje (fieldset + legend) */
+  .sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 8px; }
+  .section { margin: 0; border: 1px solid #d0d7de; border-radius: 8px; background: #fff; padding: 8px 10px; }
+  .section > legend { padding: 0 6px; font-size: 12px; font-weight: 600; color: #57606a; }
+
+  main { padding: 0; overflow: auto; }
+
+  /* Siatka (poziomy/automatyczny) */
+  .grid {
+    display: var(--grid-mode);
+    gap: var(--gap);
+    align-items: start;
+    grid-auto-rows: minmax(calc(var(--tile-h) + 2*var(--tile-pad)), auto);
+    position: relative;
+margin: 10px;
+    padding: var(--gap);
+    box-sizing: border-box;
+  }
+
+  /* Pionowy (kolumny) — tryb kolumnowy */
+  .grid.columns {
+    column-gap: var(--columns-gap);
+    padding-left: var(--columns-gap);
+    padding-right: var(--columns-gap);
+  }
+  .grid.columns .tile {
+    break-inside: avoid-column;
+    width: 100%; display: grid;
+    grid-template-columns: var(--fav-size) 1fr auto;
+    margin-bottom: var(--gap);
+  }
+
+  .tile {
+    display: grid; grid-template-columns: var(--fav-size) 1fr auto; align-items: center; gap: 8px;
+    width: 100%; min-width: 0; min-height: calc(var(--tile-h) + 2*var(--tile-pad));
+    padding: var(--tile-pad); box-sizing: border-box;
+    border: 1px solid #9aa3ad; border-radius: 8px; 
+    background-color: #fff; /* Baza */
+    cursor: pointer; user-select: none; box-shadow: 0 1px 0 rgba(31,35,40,.04);
+    container-type: inline-size; container-name: tile;
+    position: relative; /* Ważne dla z-index i pseudo-elementów */
+    z-index: 0;
+    overflow: hidden; /* Żeby hover nie wystawał */
+  }
+
+  /* Pseudo-element do Hovera (szara mgiełka) */
+  .tile::after {
+    content: ""; position: absolute; inset: 0;
+    background: currentColor; /* Używa koloru tekstu (czarny/biały) */
+    opacity: 0; /* Domyślnie niewidoczny */
+    pointer-events: none;
+    transition: opacity 0.1s;
+  }
+  
+  /* Aktywacja Hovera */
+  .tile:hover::after {
+    opacity: 0.06; /* Pokaż mgiełkę (6%) */
+  }
+
+  /* Stan Zaznaczony (.selected) */
+  .tile.selected {
+    z-index: 2; /* Wyskocz ponad grupę */
+    background-color: #fff; /* Solidne tło zakrywające grupę */
+    
+    /* Kolor zaznaczenia jako gradient na wierzchu */
+    background-image: linear-gradient(var(--selected-bg), var(--selected-bg));
+    
+    box-shadow:
+      0 0 0 2px var(--selected-glow) inset,
+      0 0 0 3px var(--selected-glow);
+  }
+
+  /* FIX: Jeśli kafel jest w zaznaczonej grupie -> usuń jego tło */
+  .tile.selected.in-selected-group {
+      background-color: transparent;
+  }
+
+  /* UNIKANIE PODWÓJNEGO TŁA:
+     Jeśli kafel jest zaznaczony (.selected), ale leży w zaznaczonej grupie (.in-selected-group - wymagane z JS),
+     to usuwamy tło kafla, bo tło grupy już tam jest. Zostaje tylko ramka i hover. */
+  .tile.selected.in-selected-group {
+      background-color: transparent;
+  }
+  .tile.drag-target { background: var(--drag-target-bg); }
+  .tile.mmb-armed { background: var(--drag-target-bg); }
+
+  .fav-wrap {
+    width: var(--fav-size); height: var(--fav-size); border-radius: 3px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; background: #e9ecef;
+  }
+  .fav {
+    display: block; width: 100% !important; height: 100% !important;
+    max-width: 100% !important; max-height: 100% !important; object-fit: contain !important;
+    image-rendering: -webkit-optimize-contrast;
+  }
+  .fav.is-letter {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%; font-size: calc(var(--fav-size) * 0.6);
+    font-weight: 600; color: #fff; text-transform: uppercase; line-height: 1;
+  }
+
+  .title-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; align-self: center; justify-content: center; }
+  .title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pin { font-size: 11px; color: #666; margin-right: 6px; }
+  body.full-title .title { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; }
+  .tile.no-meta .title-wrap { align-self: center; justify-content: center; }
+
+  .btn-icon {
+    appearance: none; border: none; background: transparent; color: #666; font-size: 14px; cursor: pointer; padding: 0 2px; border-radius: 4px;
+  }
+  .btn-icon:hover { 
+  /* background: #eee; */
+  color: #000; }
+  .btn-icon.btn-select { min-width: 1.5em; }
+
+  html.as-autoscroll, html.as-autoscroll * { cursor: all-scroll !important; }
+
+  .drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    /* rozmiar nadpisywany z JS (kwadrat) */
+    width: 40px;
+    height: 40px;
+
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--tile-pad);
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+
+    /* „jak kafel” – jasny */
+    background: linear-gradient(180deg, #ffffff 0%, #f6f8fa 100%);
+    color: #24292f;
+
+    opacity: .9;
+    box-shadow: 0 1px 2px rgba(31,35,40,.09);
+    transform: translate(-9999px, -9999px);
+  }
+  .drag-ghost .cnt {
+    display: block;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .drag-ghost {
+      background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
+      border-color: #30363d;
+      color: #c9d1d9;
+      box-shadow: none;
+    }
+  }
+
+.marquee {
+  position: fixed;
+  z-index: 7; /* nad kaflami (i group-frames=5), ale poniżej header/footer */
+  pointer-events: none;
+  background: transparent;
+  border: 3px solid var(--marquee-stroke);
+  border-radius: 4px;
+  transform: translate(-9999px,-9999px);
+}
+
+  .active { border-color: var(--marquee-stroke); box-shadow: 0 0 0 2px var(--selected-glow); }
+  .muted { opacity: .6; }
+
+  footer { padding: 2px 12px; color: #57606a; font-size: 11px; border-top: 1px solid #d0d7de; }
+
+  @media (max-width: 700px) {
+    :root { --controls-minw: 160px; }
+    main { padding: 0px; }
+  }
+
+  .filter-input { width: 150px; max-width: 100%; flex: 0 0 150px; }
+  .control label.rev.rev-filter { flex-wrap: nowrap; white-space: nowrap; align-items: center; gap: 6px; margin-right: 10px; }
+  .control label.rev.rev-filter .filter-input { flex: 0 0 150px; }
+
+  .meta { font-size: 11px; color: #57606a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.no-meta .meta { display: none; }
+
+  /* Pasek z przyciskiem Ustawienia (summary) */
+  .settings-drawer { display: grid; grid-template-rows: auto 1fr; grid-template-areas: "toggle" "body"; margin: 0 0 -4px 0; }
+  .settings-drawer[open] { grid-template-areas: "body" "toggle"; }
+  .settings-toggle {
+    grid-area: toggle;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0px 10px; margin: 0 auto; border: 1px solid #d0d7de; border-radius: 999px;
+    background: #fff; color: #24292f; font-size: 12px; line-height: 1.2; cursor: pointer; user-select: none; margin-top: 2px;
+    min-height: 16px;
+    gap: 8px;
+  }
+  .settings-toggle:hover { background: #f3f4f6; }
+  .settings-toggle:focus { outline: 2px solid #0969da33; outline-offset: 2px; }
+
+  .settings-toggle::-webkit-details-marker { display: none; }
+  .settings-toggle::before, .settings-toggle::after { color: #57606a; font-size: 11px; }
+  .settings-toggle::before { content: "▼"; margin-right: 12px; }
+  .settings-toggle::after  { content: "▼"; margin-left: 12px; }
+  .settings-drawer[open] .settings-toggle::before,
+  .settings-drawer[open] .settings-toggle::after { content: "▲"; }
+
+  @media (prefers-color-scheme: dark) {
+    header { background: #161b22; border-bottom-color: #30363d; }
+    .muted-text { color: #8b949e; }
+    .settings-toggle { background: #0d1117; color: #c9d1d9; border-color: #30363d; }
+    .settings-toggle:hover { background: #1f232a; }
+    .settings-toggle:focus { outline: 2px solid #0969da33; outline-offset: 2px; }
+
+    .btn { background: #0d1117; color: #c9d1d9; border-color: #30363d; }
+    .btn:hover { background: #21262d; }
+    .section { background: #161b22; border-color: #30363d; }
+    .section > legend { color: #8b949e; }
+    .grid.columns .tile, .tile { background-color: #161b22; border-color: #2a2f36; box-shadow: none; }
+    
+    /* W dark mode zaznaczony musi mieć ciemne tło pod spodem */
+    .tile.selected { background-color: #161b22; }
+    
+    /* Hover w dark mode (zmieniamy kolor mgiełki na biały, bo currentColor jest jasny, ale w .selected tło jest ciemne) */
+    .tile:hover::after { opacity: 0.1; } 
+    
+    /* W trybie ciemnym zaznaczony kafel musi mieć ciemne tło pod spodem */
+    .tile.selected { background-color: #161b22; }
+	
+    /* Hover w dark mode: */
+    .tile:hover { 
+        /* Nakładka rozjaśniająca */
+        background-image: linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08));
+        
+        /* WAŻNE: Przywróć solidne tło, żeby przykryć overlay grupy, gdy kafel jest na wierzchu */
+        background-color: #161b22; 
+        
+        z-index: 2; /* Upewnij się, że jest nad overlayem */
+    }
+    /* Dla zaznaczonego w dark mode color-mix zadziała automatycznie, 
+       ale można też tu nic nie dawać, bo zmienna załatwi sprawę */
+    .active { border-color: #388bfd; box-shadow: 0 0 0 2px rgba(56,139,253,.15); }
+    .meta { color: #8b949e; }
+  }
+
+  .grid .tile > .fav-wrap > img.fav {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: contain !important;
+  }
+
+  /* Menu rozwijane (baza) */
+  .menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    background: #fff;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    min-width: 200px; /* Domyślnie węższe */
+    max-width: 320px;
+    max-height: min(360px, 70vh);
+    overflow: auto;
+    box-shadow: 0 8px 24px rgba(140,149,159,0.2);
+    z-index: 10000;
+    padding: 6px;
+  }
+
+  /* Specyficzne rozmiary */
+  #restoreMenu {
+    min-width: 300px;
+    max-width: 480px;
+  }
+  #menuGroupMove, #menuGroupList {
+    min-width: 160px;
+    max-width: 300px;
+  }
+  .menu .mi {
+    display: grid;
+    grid-template-columns: var(--fav-size) 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .menu .mi:hover { background: #f3f4f6; }
+  .menu .mi .t {
+    font-size: 13px; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .menu .mi .m {
+    font-size: 11px; color: #57606a;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .menu .empty {
+    font-size: 12px; color: #57606a; padding: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .menu {
+      background: #161b22;
+      border-color: #30363d;
+      box-shadow: none;
+    }
+    .menu .mi:hover { background: #1f232a; }
+    .menu .m, .menu .empty { color: #8b949e; }
+  }
+
+  /* Smart tooltip (zamiast title="") */
+  .smart-tip {
+    position: fixed;
+    z-index: 10060;
+    max-width: 320px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.3;
+    color: #24292f;
+    background: #fff;
+    border: 1px solid #000000;
+    border-radius: 8px;
+    box-shadow: none;
+    pointer-events: none;
+    transform: translate(-9999px,-9999px);
+    white-space: normal;
+  }
+  @media (prefers-color-scheme: dark) {
+    .smart-tip {
+      color: #c9d1d9;
+      background: #161b22;
+      border-color: #30363d;
+      box-shadow: none;
+    }
+  }
+
+/* Nakładki grup — underlay (wypełnienie pod kaflami) + overlay (obrys/chip nad kaflami) */
+.group-underlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: -1; /* pod kaflami (nie zasłania) */
+}
+.group-underfill {
+  position: absolute; inset: 0;
+  border-radius: 8px;
+  background: transparent; /* fallback bez wypełnienia */
+  pointer-events: none;
+}
+
+/* Wypełnienie z color-mix (Chromium/Brave) */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  .group-underfill { background: color-mix(in srgb, currentColor 18%, transparent); }
+}
+@media (prefers-color-scheme: dark) {
+  @supports (background: color-mix(in srgb, red 50%, transparent)) {
+    .group-underfill { background: color-mix(in srgb, currentColor 25%, transparent); }
+  }
+}
+
+/* Fallback dla starszych: brak color-mix → opacity na currentColor */
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .group-underfill::before {
+    content: ""; position: absolute; inset: 0;
+    background: currentColor; opacity: .18; border-radius: inherit; pointer-events: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .group-underfill::before { opacity: .25; }
+  }
+}
+
+/* Overlay (obrys + chip) jak dotąd */
+.group-frames {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.group-frame {
+  position: absolute;
+  z-index: 1; /* nad overlayfill */
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+/* Neutralizacja wypełnienia overlaya (zostaje tylko border/chip) */
+.group-frame { background: transparent !important; }
+.group-frame::before { content: none !important; }
+
+
+
+
+
+/*
+  .group-chip.selected {
+  background: var(--selected-bg);
+  box-shadow:
+    0 0 0 2px var(--selected-glow) inset,
+    0 0 0 3px var(--selected-glow);
+} 
+*/
+
+
+
+
+
+.group-chip.selected {
+  background: #fff; /* pełne tło jak w stanie normalnym */
+  box-shadow: none;
+}
+@media (prefers-color-scheme: dark) {
+  .group-chip.selected { background: #161b22; }
+}
+
+
+.group-frame.selected {
+  box-shadow: 0 0 0 3px var(--selected-glow);
+}
+
+.group-overlayfill {
+  position: absolute;
+  z-index: 1; /* Podnosimy overlay ponad zwykłe kafle */
+  border-radius: 8px;
+  background: var(--selected-bg); /* Taki sam kolor jak kafel (12%) */
+  box-shadow: 0 0 0 3px var(--selected-glow) inset;
+  pointer-events: none;
+}
+
+.group-chip {
+  position: absolute;
+  z-index: 2; /* ponad ramką i overlayfill */
+  top: -10px; left: 10px;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; line-height: 1; /* jak tytuł kafla */
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  background: #fff;
+  color: inherit;
+  white-space: nowrap;
+  pointer-events: auto;
+  box-sizing: border-box; /* szerokość liczy padding/border */
+  cursor: pointer; /* jak kafel */
+}
+  .group-chip:hover { background: #f3f4f6; }            /* jak .tile:hover */
+  @media (prefers-color-scheme: dark) {
+    .group-chip { background: #161b22; }
+    .group-chip:hover { background: #1f232a; }
+  }
+  .group-chip .ico {
+    font-size: clamp(16px, calc(var(--fav-size) * 0.30), 32px); /* min 16px, 30%, max 32px */
+    line-height: 1;
+    margin-right: -5px;
+    vertical-align: -1px;
+  }
+  .group-chip .name {
+	font-size: 13px;
+	line-height: 1;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis; /* … jak w tytule kafla */
+	}
+	
+	/* Tryb Cała nazwa – taki sam jak dla kafli */
+	body.full-title .group-chip .name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+}
+
+  .group-chip .actions {
+    display: inline-flex; align-items: center; gap: 3px;
+    margin-left: auto;                                /* ikony po prawej, jak w kaflu */
+  }
+  .group-chip .actions .btn-icon {
+    appearance: none; border: none; background: transparent; color: #666;
+    font-size: 14px; line-height: 1; padding: 0 2px; border-radius: 4px; cursor: pointer;
+  }
+  .group-chip .actions .btn-icon {margin: 0 -2px !important;}
+  
+  .group-chip .actions .btn-icon:hover { background: #eee; color: #000; }
+  .group-chip .actions .btn-arrow { font-size: 16px; } /* ▾/▸ większe */
+  @media (prefers-color-scheme: dark) {
+    .group-chip { background: #161b22; }
+    .group-chip .actions .btn-icon:hover { background: #1f232a; color: #c9d1d9; }
+  }
+
+  /* DnD: pionowy pasek wstawiania (między kaflami) */
+  .dnd-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
+  .insert-caret {
+    position: absolute;
+    width: 4px;
+    background: var(--marquee-stroke);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px var(--selected-glow);
+    pointer-events: none;
+    transform: translate(-9999px,-9999px);
+  }
+  
+
+/* Media activity blink */
+@keyframes media-blink {
+  0%   { outline-color: var(--marquee-stroke); }
+  50%  { outline-color: transparent; }
+  100% { outline-color: var(--marquee-stroke); }
+}
+.tile.media-active {
+  outline: 3px solid var(--marquee-stroke);
+  outline-offset: -3px;
+  animation: media-blink 2s ease-in-out infinite;
+}
+
+/* Badge dla zwiniętej grupy (liczba ukrytych kafli) */
+.grp-collapsed-count {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  color: #57606a;
+  border: 1px solid #d0d7de;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+@media (prefers-color-scheme: dark) {
+  .grp-collapsed-count {
+    color: #8b949e;
+    border-color: #30363d;
+  }
+}
+/* Folderowa favka bez tła */
+.tile.collapsed-group .fav.is-letter { background: transparent !important; }
+
+header, footer {
+  position: relative;
+  z-index: 20; /* ponad .marquee (7) i ponad gridem */
+}
+</style>
+</head>
+<body>
+<header>
+  <details class="settings-drawer" id="settings">
+    <summary class="settings-toggle" title="Pokaż/ukryj panel ustawień siatki i MRU">Ustawienia</summary>
+    <div class="settings-body">
+      <div class="sections">
+        <!-- Sekcja 1: Nawigacja / MRU -->
+        <fieldset class="section" title="Ustawienia mechanizmu MRU i przypinania siatki">
+          <legend>Nawigacja</legend>
+          <div class="controls compact">
+            <div class="control">
+              <label class="rev" title="Ile ostatnich kliknięć zapamiętać (0-50). 0 - wyłącza funkcjonalność.">
+                <span class="lab">Historia kliknięć</span><input id="depth" type="number" min="0" max="50" step="1" />
+              </label>
+            </div>
+            <div class="control">
+              <label title="Gdy włączone: przypięte karty nie trafiają do historii MRU. Gdy wyłączone i siatka jest przypięta – po zamknięciu karty wrócisz do siatki.">
+                <input id="ignorePinnedExt" type="checkbox" />Ignoruj przypięte w historii
+              </label>
+            </div>
+            <div class="control">
+              <label title="Po kliknięciu ikony rozszerzenia siatka otwiera się jako przypięta karta.">
+                <input id="autoPin" type="checkbox" />Otwieraj siatkę kart przypiętą
+              </label>
+            </div>
+
+            <!-- Kontener na przyciski (zajmuje całą szerokość) -->
+            <div style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:flex-end; gap:6px; margin-top:4px;">
+                
+                <!-- Rząd 1 -->
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                    <button id="refresh" class="btn" title="Odświeża siatkę i czyści zaznaczenia (☐/☑)">Odśwież ↻</button>
+
+                    <div class="restore-wrap" style="display:inline-block; position:relative;">
+                        <button id="restoreMenuBtn" class="btn" title="Pokaż historię zamkniętych kart" aria-haspopup="true" aria-expanded="false">Przywróć ↶</button>
+                        <div id="restoreMenu" class="menu" role="menu" style="display:none;"></div>
+                    </div>
+                  
+                    <button id="deleteSelectedBtn" class="btn" title="Usuń zaznaczone karty i grupy (Delete)" disabled>Usuń 🗑</button>
+                </div>
+
+                <!-- Rząd 2 -->
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                    <button id="btnGroupNew" class="btn" disabled title="Utwórz nową grupę z zaznaczonych">Grupuj</button>
+                    
+                    <div class="grp-move-wrap" style="display:inline-block; position:relative;">
+                        <button id="btnGroupMove" class="btn" aria-haspopup="true" disabled title="Przenieś zaznaczone do istniejącej grupy">Przenieś ▼</button>
+                        <div id="menuGroupMove" class="menu" role="menu" style="display:none;"></div>
+                    </div>
+
+                    <button id="btnGroupProps" class="btn" disabled title="Edytuj nazwę i kolor zaznaczonej grupy">Właściwości</button>
+                    
+                    <div class="grp-list-wrap" style="display:inline-block; position:relative;">
+                        <button id="btnGroupList" class="btn" aria-haspopup="true" title="Lista wszystkich grup (ukryte/widoczne)">Lista ▼</button>
+                        <div id="menuGroupList" class="menu" role="menu" style="display:none;"></div>
+                    </div>
+<div id="groupEditDialog" style="display:none; border:1px solid #d0d7de; border-radius:8px; padding:16px; position:absolute; width:260px; background:#fff; color:#24292f; z-index:10100; box-shadow:0 8px 24px rgba(0,0,0,0.2);">
+    <div style="font-weight:600; margin-bottom:12px;">Edycja Grupy</div>
+    <input id="gedTitle" type="text" placeholder="Nazwa grupy" style="width:100%; padding:6px; margin-bottom:12px; box-sizing:border-box; border:1px solid #d0d7de; border-radius:4px;">
+    <div id="gedColors" style="display:grid; grid-template-columns:repeat(8,1fr); gap:6px; margin-bottom:16px;"></div>
+    
+    <!-- Akcje (tylko przy edycji istniejącej grupy) -->
+    <div id="gedActions" style="display:none; flex-direction:column; gap:4px; margin-bottom:16px; border-top:1px solid #d0d7de; padding-top:12px;">
+        <button id="actToggle" class="btn" style="text-align:left; width:100%;">▾▸ Zwiń / Rozwiń</button>
+        <button id="actHide" class="btn" style="text-align:left; width:100%;">👁 Ukryj (Zamknij)</button>
+        <button id="actUngroup" class="btn" style="text-align:left; width:100%;">⇱ Rozgrupuj (zostaw karty)</button>
+        <button id="actDelete" class="btn" style="text-align:left; width:100%; color:#d1242f;">🗑 Usuń (z kartami)</button>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button id="gedCancel" class="btn">Anuluj</button>
+        <button id="gedSave" class="btn" style="background:#0969da; color:#fff; border-color:#0969da;">Zapisz</button>
+    </div>
+</div>
+                </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Sekcja 2: Siatka -->
+        <fieldset class="section" title="Układ siatki kafelków i rozmiary">
+          <legend>Siatka</legend>
+          <div class="controls compact">
+            <div class="control">
+              <label class="rev" title="Sposób układu: wiersze (poziomo), kolumny (pionowo) lub automatycznie dopasuj do szerokości okna.">
+                <span class="lab">Układ</span>
+                <select id="orientation">
+                  <option value="horizontal">wiersze</option>
+                  <option value="vertical">kolumny</option>
+                  <option value="auto">dopasuj</option>
+                </select>
+              </label>
+            </div>
+            <div class="control">
+              <label id="labelCount" class="rev" title="W poziomie: liczba wierszy. W pionie: liczba kolumn. W auto: pole niewykorzystywane.">
+                <span class="lab">Wiersze</span><input id="count" type="number" min="1" max="300" step="1" />
+              </label>
+            </div>
+            <div class="control">
+              <label class="rev" title="Minimalna szerokość kafla (px). W auto to minimalna szerokość toru w siatce.">
+                <span class="lab">Szerokość</span><input id="tileW" type="number" min="16" max="2000" step="1" />
+              </label>
+            </div>
+            <div class="control">
+              <label class="rev" title="Wysokość wiersza kafla (px). Razem z &quot;Dodatkowe info&quot; wpływa na wysokość kafla.">
+                <span class="lab">Wysokość</span><input id="tileH" type="number" min="16" max="200" step="1" />
+              </label>
+            </div>
+            <div class="control">
+              <label class="rev" title="Odstęp wewnątrz kafla (px).">
+                <span class="lab">Padding</span><input id="tilePad" type="number" min="0" max="25" step="1" />
+              </label>
+            </div>
+            <div class="control">
+              <label class="rev" title="Rozmiar favicon (px). Tylko lokalne źródła (chrome://favicon, /favicon.ico).">
+                <span class="lab">Ikonki</span><input id="iconSize" type="number" min="16" max="128" step="1" />
+              </label>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Sekcja 3: Widok -->
+        <fieldset class="section" title="Widoczność i kolejność kart w siatce">
+          <legend>Widok</legend>
+          <div class="controls compact">
+            <div class="control">
+              <label class="rev" title="Kolejność kafli: po indeksie (pasek kart) lub po czasie aktywacji (ostatnio używane).">
+                <span class="lab">Sortowanie</span>
+                <select id="sort">
+                  <option value="index-asc">indeks +</option>
+                  <option value="index-desc">indeks -</option>
+                  <option value="time-desc">czas +</option>
+                  <option value="time-asc">czas -</option>
+                </select>
+              </label>
+            </div>
+            <div class="control">
+              <label class="rev rev-filter" title="Filtruje po tytule i URL. Nie resetuje zaznaczeń (☐/☑).">
+                <span class="lab">Filtr</span>
+                <input id="filter" type="search" class="filter-input" placeholder="tytuł lub URL..." />
+              </label>
+            </div>
+            <div class="control">
+              <label title="Ukrywa przypięte karty w siatce (nie wpływa na MRU).">
+                <input id="hidePinned" type="checkbox" />Ukryj przypięte zakładki
+              </label>
+            </div>
+            <div class="control">
+              <label title="Pokazuje drugi wiersz z hostem i czasem użycia.">
+                <input id="showMeta" type="checkbox" />Dodatkowe info
+              </label>
+            </div>
+            <div class="control">
+				<label title="Pokaż przyciski w kaflach: ☐/☑ (zaznacz), ↻ (odśwież), 🗑 (usuń).">
+				  <input id="showClose" type="checkbox" />Pokaż ☐ ↻ 🗑
+				</label>
+            </div>
+            <div class="control">
+              <label title="Wyłącz elipsę; pozwól na zawijanie całego tytułu na wiele linii.">
+                <input id="fullTitle" type="checkbox" />Cała nazwa
+              </label>
+            </div>
+            
+            <!-- Wybór koloru -->
+            <div class="control">
+                <div class="accent-wrap" style="display:inline-block; position:relative;">
+                    <button id="btnAccentColor" class="btn" aria-haspopup="true" title="Zmień kolor główny zaznaczenia">
+                        <span id="accentDot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#0969da; margin-right:6px;"></span>
+                        Kolor bazowy
+                    </button>
+                    <div id="menuAccentColor" class="menu" role="menu" style="display:none; min-width:160px; left:0; right:auto;"></div>
+                </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  </details>
+
+  <!-- „?” po prawej krawędzi paska -->
+  <button id="helpBtnTop" class="help-btn-top" type="button" aria-haspopup="dialog" aria-expanded="false" title="Informacje">?</button>
+  <div id="helpTipTop" class="help-panel-top" style="display:none;" role="dialog" aria-label="Informacje">
+    <div class="hp-title">LastTAB-return — informacje</div>
+    <div class="hp-body">
+      <p style="margin-bottom:8px;"><strong>Mysz i zaznaczanie</strong></p>
+      <ul>
+        <li><strong>LPM</strong>: aktywuje kartę. Na przycisku ☐ zaznacza.</li>
+        <li><strong>ŚPM</strong>: kliknięcie zamyka kartę. Przytrzymanie włącza autoscroll.</li>
+        <li><strong>PPM</strong>: szybkie zaznaczenie (solo). Z ruchem = Przenoszenie (DnD). Na tle = Zaznaczanie obszarem.</li>
+        <li><strong>Ctrl+Klik PPM</strong>: dodaje do zaznaczenia (toggle).</li>
+      </ul>
+
+      <p style="margin:8px 0;"><strong>Przenoszenie (D&D)</strong></p>
+      <ul>
+        <li>Chwyć zaznaczone karty lub grupę, aby przenieść.</li>
+        <li>Wskaźnik w <strong>kolorze grupy</strong> = wstawienie do środka (dołącz).</li>
+        <li>Wskaźnik <strong>neutralny</strong> = wstawienie obok (omiń grupę).</li>
+      </ul>
+
+      <p style="margin:8px 0;"><strong>Grupy i Akcje</strong></p>
+      <ul>
+        <li><strong>Grupuj / Właściwości</strong>: tworzenie i edycja (nazwa, kolor).</li>
+        <li><strong>Przenieś / Lista</strong>: zarządzanie kartami w grupach.</li>
+        <li><strong>Ukryj (👁)</strong>: zwija grupę i chowa ją z siatki (dostępna w menu "Lista").</li>
+        <li><strong>Klawisz Delete</strong>: usuwa zaznaczone karty i grupy.</li>
+      </ul>
+      
+      <p style="margin-top:8px; font-size:12px; color:#57606a;">ESC: anuluje akcję lub czyści zaznaczenie.</p>
+	  <p style="margin-top:8px; font-size:12px; color:#57606a;">Shift+PPM: natywne menu.</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="grid" class="grid"></div>
+</main>
+<footer id="info"></footer>
+
+<script src="switcher.js"></script>
+</body>
+</html>
