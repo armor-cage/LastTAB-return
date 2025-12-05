@@ -2632,6 +2632,10 @@ render();
 
     marquee._keyH = (ev) => {
       if (!marquee) return;
+      // BLOKADA SPAMU: Jeśli to powtórzenie klawisza (trzymanie), ignoruj.
+      // Reaguj tylko na fizyczną zmianę stanu (wciśnięcie/puszczenie).
+      if (ev.repeat) return;
+
       const isAltGr = !!(ev.getModifierState && ev.getModifierState('AltGraph'));
       marquee.mode.ctrl = !!((ev.ctrlKey || ev.metaKey) && !isAltGr);
       marquee.mode.alt  = !!(ev.altKey || isAltGr);
@@ -4139,4 +4143,5 @@ function init() {
   });
 }
 init();
+
 
