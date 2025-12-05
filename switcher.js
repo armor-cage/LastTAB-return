@@ -699,12 +699,18 @@ function setGridLayout(itemsCount) {
   const o = els.orientation?.value;
   const tw = clamp(els.tileW?.value, LIMITS.tileWMin, LIMITS.tileWMax);
   const rowsOrCols = clamp(els.count?.value, LIMITS.countMin, LIMITS.countMax);
-
+  const mainEl = document.querySelector('main');
+  
   els.grid.classList.remove('columns');
   els.grid.style.columnCount = '';
   els.grid.style.gridTemplateRows = '';
   els.grid.style.gridTemplateColumns = '';
   els.grid.style.gridAutoFlow = '';
+
+  if (mainEl) {
+      mainEl.style.overflowY = '';
+      mainEl.style.overflowX = '';
+  }
 
   if (o === 'horizontal') {
     const rows = rowsOrCols;
@@ -714,16 +720,19 @@ function setGridLayout(itemsCount) {
     els.grid.style.gridAutoFlow = 'row';
     els.grid.style.gridTemplateRows = `repeat(${rows}, minmax(var(--tile-h), auto))`;
     els.grid.style.gridTemplateColumns = `repeat(${cols}, ${tw}px)`;
+	if (mainEl) mainEl.style.overflowX = 'scroll';
   } else if (o === 'vertical') {
     document.documentElement.style.setProperty('--grid-mode', 'block');
     document.documentElement.style.setProperty('--tile-min-w', `0px`);
     els.grid.classList.add('columns');
+	if (mainEl) mainEl.style.overflowY = 'scroll';
     els.grid.style.columnCount = String(rowsOrCols);
   } else {
     document.documentElement.style.setProperty('--grid-mode', 'grid');
     document.documentElement.style.setProperty('--tile-min-w', `min(100%, ${tw}px)`);
     els.grid.style.gridAutoFlow = 'row';
     els.grid.style.gridTemplateColumns = `repeat(auto-fit, minmax(min(100%, ${tw}px), 1fr))`;
+	if (mainEl) mainEl.style.overflowY = 'scroll';
   }
 }
 
@@ -4143,5 +4152,6 @@ function init() {
   });
 }
 init();
+
 
 
