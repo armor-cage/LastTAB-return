@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LastTAB-return - powrót do poprzednio używanej karty",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Po zamknięciu aktywnej karty wraca do poprzednio używanej. Siatka kart: pozioma/pionowa/automatyczna, rozmiar kafelków i inne ustawienia.",
   "permissions": ["tabs", "storage", "windows", "scripting", "sessions", "tabGroups"],
   "host_permissions": ["<all_urls>"],
@@ -32,4 +32,5 @@
       "description": "LastTAB-return - otwórz siatkę kart"
     }
   }
+
 }
